@@ -38,6 +38,11 @@ function runBackup {
 		printf "No incremental basedir provided!\n\n"
 		exit 1
 	fi
+	if [ -z "$3" ]; then
+		local _last="false"
+	else
+		local _last="true"
+	fi
 
 	# Set variables
 	local _baseDir="$1"
@@ -46,7 +51,7 @@ function runBackup {
 
 	# Run backup
 	printf "Running incremental backup...\n\n"
-	innobackupex --user=${_dbUser} --password=${_dbPass} --incremental ${_baseDir}/prepared --incremental-basedir=${_incBaseDir}/ --no-timestamp ${_targetDir}/ ; _status=$?
+	innobackupex --user=${_dbUser} --password=${_dbPass} --incremental ${_targetDir} --incremental-basedir=${_incBaseDir}/ --no-timestamp ; _status=$?
 
 	if [ ${_status} != "0" ]; then
 		printf "\nIncremental backup failed!\n"
@@ -69,7 +74,7 @@ function runBackup {
 	fi
 	
 	# Prepare the full backup
-	if [ ${3} == "true" ]; then
+	if [ ${_last} == "true" ]; then
 		printf "Preparing final incremental backup\n"
 		innobackupex --apply-log ${_fullBaseDir}/ --incremental-basedir=${_targetDir}/ ; _status=$?
 	else
