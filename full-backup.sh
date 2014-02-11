@@ -54,7 +54,7 @@ fi
 
 # Create latest_full link
 printf "Creating link..."
-if [ -f ${_backupBaseDir}/latest_full ]; then
+if [ -a ${_backupBaseDir}/latest_full ]; then
 	rm ${_backupBaseDir}/latest_full
 	printf "removed old..."
 fi
