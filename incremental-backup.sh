@@ -76,10 +76,10 @@ function runBackup {
 	# Prepare the full backup
 	if [ ${_last} == "true" ]; then
 		printf "Preparing final incremental backup\n"
-		innobackupex --apply-log ${_fullBaseDir}/ --incremental-basedir=${_targetDir}/ ; _status=$?
+		innobackupex --apply-log ${_fullBaseDir}/ --incremental-dir=${_targetDir}/ ; _status=$?
 	else
 		printf "Preparing incremental backup\n"
-		innobackupex --apply-log --redo-only ${_fullBaseDir}/ --incremental-basedir=${_targetDir}/ ; _status=$?
+		innobackupex --apply-log --redo-only ${_fullBaseDir}/ --incremental-dir=${_targetDir}/ ; _status=$?
 	fi
 	
 	if [ ${_status} != "0" ]; then
