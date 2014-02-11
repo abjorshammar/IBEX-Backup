@@ -11,14 +11,14 @@ _dbUser=""
 _dbPass=""
 _backupBaseDir=""
 _secondaryBackupBaseDir=""
-_timestamp=`date +"%d-%m-%Y_%T"`
+_timestamp=`date +"%d-%m-%Y_%H-%M-%S"`
 _targetDir="${_backupBaseDir}/prepared/${_timestamp}"
 
 printf "Backup started ${_targetDir}\n"
 
 # Run the full backup
 printf "Running full backup...\n\n"
-innobackupex --user=${_dbUser} --password=${_dbPass} --no-timestamp ${_targetDir} ; _status=$?
+innobackupex --user=${_dbUser} --password=${_dbPass} --no-timestamp ${_targetDir}/ ; _status=$?
 
 if [ ${_status} != "0" ]; then
 	printf "\nBackup failed!\n"
@@ -26,10 +26,11 @@ if [ ${_status} != "0" ]; then
 	exit 1
 else
 	printf "\nFull backup done\n"
+fi
 
 # Copy the full backup to secondary location
 printf "Copying full backup to secondary location..."
-cp -a ${_targetDir} ${_secondaryBackupBaseDir} ; _status=$?
+cp -a ${_targetDir} ${_secondaryBackupBaseDir}/ ; _status=$?
 
 if [ ${_status} != "0" ]; then
 	printf "\nCopy failed!\n"
@@ -37,6 +38,7 @@ if [ ${_status} != "0" ]; then
 	exit 1
 else
 	printf "done\n"
+fi
 
 # Prepare the full backup
 printf "Preparing full backup ${_timestamp}\n"
@@ -48,6 +50,7 @@ if [ ${_status} != "0" ]; then
 	exit 1
 else
 	printf "\nPreparation done\n"
+fi
 
 # Create latest_full link
 printf "Creating link..."
@@ -59,6 +62,7 @@ if [ ${_status} != "0" ]; then
 	exit 1
 else
 	printf "done\n"
+fi
 
 # Backup finished
 printf "\nBackup finished ${_timestamp}\n"
