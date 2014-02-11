@@ -92,12 +92,12 @@ function runBackup {
 	
 	# Create latest_inc link
 	printf "Creating link..."
-	if [ -a ${_incBaseDir}/latest_inc ]; then
-		rm ${_incBaseDir}/latest_inc
+	if [ -a ${_baseDir}/latest_inc ]; then
+		rm ${_baseDir}/latest_inc
 		printf "removed old..."
 	fi
 	
-	ln -s ${_targetDir} ${_incBaseDir}/latest_inc ; _status=$?
+	ln -s ${_targetDir} ${_baseDir}/latest_inc ; _status=$?
 	
 	if [ ${_status} != "0" ]; then
 		printf "failed!\n"
