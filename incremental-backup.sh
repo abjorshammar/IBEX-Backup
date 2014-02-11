@@ -133,8 +133,8 @@ function normalBackup {
 	# Setup variables
 	local _fullBaseDir="${_backupBaseDir}/latest_full"
 	local _incBaseDir="${_backupBaseDir}/latest_inc"
-	local _fullLsn=`grep last_lsn ${_fullBaseDir}/xtrabackup_checkpoints | awk -F ' = ' '{print $2}'`
-	local _incLsn=`grep last_lsn ${_incBaseDir}/xtrabackup_checkpoints | awk -F ' = ' '{print $2}'`
+	local _fullLsn=`grep to_lsn ${_fullBaseDir}/xtrabackup_checkpoints | awk -F ' = ' '{print $2}'`
+	local _incLsn=`grep to_lsn ${_incBaseDir}/xtrabackup_checkpoints | awk -F ' = ' '{print $2}'`
 
 	# Check status of backup
 	if [ ${_fullLsn} != ${_incLsn} ]; then
@@ -152,8 +152,8 @@ function lastBackup {
 	# Setup variables
 	local _fullBaseDir="${_backupBaseDir}/latest_full"
 	local _incBaseDir="${_backupBaseDir}/latest_inc"
-	local _fullLsn=`grep last_lsn ${_fullBaseDir}/xtrabackup_checkpoints | awk -F ' = ' '{print $2}'`
-	local _incLsn=`grep last_lsn ${_incBaseDir}/xtrabackup_checkpoints | awk -F ' = ' '{print $2}'`
+	local _fullLsn=`grep to_lsn ${_fullBaseDir}/xtrabackup_checkpoints | awk -F ' = ' '{print $2}'`
+	local _incLsn=`grep to_lsn ${_incBaseDir}/xtrabackup_checkpoints | awk -F ' = ' '{print $2}'`
 	local _fullName=`readlink ${_fullBaseDir} | awk -F '/' '{print $(NF)}'`
 
 	# Check status of backup
