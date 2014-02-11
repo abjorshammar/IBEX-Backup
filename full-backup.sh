@@ -1,4 +1,4 @@
-#!/bin/bash
+ #!/bin/bash
 #
 # full-backup.sh - This script will: 
 # 1. Create a full backup in to a timestamped folder
@@ -54,6 +54,11 @@ fi
 
 # Create latest_full link
 printf "Creating link..."
+if [ -f ${_backupBaseDir}/latest_full ]; then
+	rm ${_backupBaseDir}/latest_full
+	printf "removed old..."
+fi
+
 ln -s ${_targetDir} ${_backupBaseDir}/latest_full ; _status=$?
 
 if [ ${_status} != "0" ]; then
