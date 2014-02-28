@@ -1,4 +1,4 @@
- #!/bin/bash
+#!/bin/bash
 #
 # full-backup.sh - This script will: 
 # 1. Create a full backup in to a timestamped folder

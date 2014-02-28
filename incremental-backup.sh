@@ -178,7 +178,7 @@ function lastBackup {
 
 	# Tar and compress newly prepared full backup
 	printf "Archiving full backup..."
-	tar caf ${_fullName}.tar.bz2 ${_backupBaseDir}/prepared/${_fullName} ; _status=$?
+	tar caf ${_backupBaseDir}/prepared/${_fullName}.tar.bz2 ${_backupBaseDir}/prepared/${_fullName} ; _status=$?
 		
 	if [ ${_status} != "0" ]; then
 		printf "failed!\n"
@@ -190,7 +190,7 @@ function lastBackup {
 	
 	# Move newly created tar.gz-file to online share
 	printf "Moving archive to tertiary dir..."
-	mv ${_fullName}.tar.bz2 ${_tertiaryBackupBaseDir}/ ; _status=$?
+	mv ${_backupBaseDir}/prepared/${_fullName}.tar.bz2 ${_tertiaryBackupBaseDir}/ ; _status=$?
 		
 	if [ ${_status} != "0" ]; then
 		printf "failed!\n"
