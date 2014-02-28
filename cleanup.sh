@@ -5,11 +5,6 @@
 #
 
 # Setup variables
-_backupBaseDir=""
-_secondaryBackupBaseDir=""
-_tertiaryBackupBaseDir=""
-_timestamp=`date +"%d-%m-%Y_%H-%M-%S"`
-_targetDir="${_backupBaseDir}/prepared/${_timestamp}"
 
 # Functions
 function usage {
