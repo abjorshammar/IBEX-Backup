@@ -5,6 +5,7 @@ import sys
 import time
 import argparse
 import logging
+import shlex
 from subprocess import Popen, PIPE
 
 # Read options from command line
@@ -55,43 +56,62 @@ for m in mandatory_settings:
 
 
 # Setup variables
+# ---------------
+
+# Database settings
 dbuser = settings['dbuser']
 dbpass = settings['dbpass']
+# Misc
 timeStamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+# Directories
 baseDir = settings['baseDir']
 secondaryBaseDir = settings['secondaryBaseDir']
 offsiteBaseDir = settings['offsiteBaseDir']
 targetDir = baseDir + '/prepared/' + timeStamp
+# Directories to check and create
+criticalDirectories = [baseDir, secondaryBaseDir, offsiteBaseDir]
+# Symbolic links
 lastFull = baseDir + '/latest_full'
 lastInc = baseDir + '/latest_inc'
+# Status files
 fullStatusFile = settings['logDir'] + '/status-full-backup'
 incStatusFile = settings['logDir'] + '/status-inc-backup'
 
-# Check some important dirs
-logging.debug('Checking directories and links')
-if not os.path.isdir(baseDir):
-    logging.critical('BaseDir "' + baseDir + '" does not exist!')
-    sys.exit(1)
-
 
 # Functions
-def checkFreeSpace(path, multiplicator):
+# ---------
+
+def checkDirectory(directory):
+    if not os.path.exists(directory):
+        try:
+            os.makedirs(directory)
+            logging.debug('Created "' + directory + '"')
+            return 0
+        except OSError:
+            logging.critical('Unable to create "' + directory + '"!')
+            return 1
+    else:
+        logging.debug('Directory "' + directory + '" already exists')
+        return 0
+
+
+def checkFreeSpace(path, partition, multiplicator):
     # Check the backup size
     du = Popen(['du', '-s', path], stdout=PIPE)
     output = du.communicate()[0]
     backupSize = output.split('\t')[0]
 
     # Check the partition free space
-    df = Popen(['df', '-k', path], stdout=PIPE)
+    df = Popen(['df', '-k', partition], stdout=PIPE)
     output = df.communicate()[0]
-    partitionSize = output.split()[-3]
+    partitionFreeSpace = output.split()[-3]
 
     # Calculate the size needed
     spaceNeeded = int(backupSize) * multiplicator
-    logging.debug('Space needed is: ' + str(spaceNeeded) + 'KB')
-    logging.debug('Space available is: ' + str(partitionSize) + 'KB')
+    logging.debug('Space needed on "' + partition + '" is: ' + str(spaceNeeded) + 'KB')
+    logging.debug('Space available is: ' + str(partitionFreeSpace) + 'KB')
 
-    if int(spaceNeeded) >= int(partitionSize):
+    if int(spaceNeeded) >= int(partitionFreeSpace):
         logging.debug('Space needed is more then space available')
         return False
     else:
@@ -122,32 +142,73 @@ def checkStatus(statFile):
         return None
 
 
+def runCommand(command):
+    cmd = shlex.split(command)
+    logging.debug('Running command: "' + command + '"')
+
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+    for line in proc.stderr:
+        logging.warning(str(line.strip()))
+
+    for line in proc.stdout:
+        logging.debug(str(line.strip()))
+
+    proc.wait()
+
+    if proc.returncode != 0:
+        logging.critical('Command failed with return code "' + str(proc.returncode) + '"')
+        return 1
+    else:
+        logging.debug('Command successfully finished with returncode "' + str(proc.returncode) + '"')
+        return 0
+
+
 def fullBackup():
     status = checkStatus(fullStatusFile)
     if status == 'started':
         logging.critical('Last full backup still running?!')
         return 1
 
+    # Check free disk space on secondary location
+    freeSpaceSecondary = checkFreeSpace(lastFull, secondaryBaseDir, 1.5)
+    if not freeSpaceSecondary:
+        logging.warning('Not enough free space on secondary location!')
+        copy = False
+    else:
+        copy = True
+
     setStatus(fullStatusFile, 'started')
 
     # Run the full backup
-    cmd = "innobackupex --user={0} --password={1} --no-timestamp {2}/".format(dbuser, dbpass, targetDir)
-    logging.debug('Backup command: "' + cmd + '"')
+    logging.info('Running backup')
+    command = "innobackupex --user={0} --password={1} --no-timestamp {2}/".format(dbuser, dbpass, targetDir)
+    status = runCommand(command)
+    if status == 1:
+        return 1
 
     # Copy the unprepared backup to secondary location
-    cmd = "cp -a {0} {1}/".format(targetDir, secondaryBaseDir)
-    logging.debug('Copy command: "' + cmd + '"')
+    logging.info('Copying backup to secondary location')
+    if copy:
+        command = "cp -a {0} {1}/".format(targetDir, secondaryBaseDir)
+        status = runCommand(command)
+        if status == 1:
+            return 1
+    else:
+        logging.warning('Skipping copy to secondary location, not enough free space!')
 
     # Prepare the full backup
-    cmd = "innobackupex --apply-log --redo-only {0}/".format(targetDir)
-    logging.debug('Prepare command: "' + cmd + '"')
+    logging.info('Preparing backup')
+    command = "innobackupex --apply-log --redo-only {0}/".format(targetDir)
+    status = runCommand(command)
+    if status == 1:
+        return 1
 
     # Create latest_full link
     try:
         logging.debug('Creating symlink: "' + targetDir + '" <- "' + lastFull +'"')
         os.symlink(targetDir, lastFull)
-    except OSError, e:
-        if e.errno == errno.EEXIST:
+    except OSError as exception:
+        if exception.errno == errno.EEXIST:
             logging.debug('Removing old symlink')
             os.remove(lastFull)
             logging.debug('Recreating symlink')
@@ -162,17 +223,29 @@ def incBackup(incType):
     return
 
 
-#
 # Main
-#
+# ----
 
-# Check what kind of backup we're running
+# Check some important dirs
+logging.debug('Checking critical directories')
+
+for directory in criticalDirectories:
+    status = checkDirectory(directory)
+    if status == 1:
+        logging.critical('Backup failed!')
+        sys.exit(1)
+
+
+# Run backup
+# ----------
+
+# Full
 if args.backupType == 'full':
     if not os.path.islink(lastFull):
         logging.warning('This seems like the first run, skipping latest_full link')
-        freeSpace = checkFreeSpace(baseDir, 1.5)
+        freeSpace = checkFreeSpace(baseDir, baseDir, 1.5)
     else:
-        freeSpace = checkFreeSpace(lastFull, 1.5)
+        freeSpace = checkFreeSpace(lastFull, baseDir, 1.5)
     if not freeSpace:
         logging.critical('Not enough free space!')
         sys.exit(1)
@@ -180,21 +253,25 @@ if args.backupType == 'full':
         logging.debug('Starting full backup')
         status = fullBackup()
         if status == 1:
+            logging.debug('Setting status file to failed')
+            setStatus(fullStatusFile, 'failed')
             logging.critical('Full backup failed!')
             sys.exit(1)
         else:
             logging.info('Full backup sucessfull')
             sys.exit(0)
+# Incremental
 else:
     if not os.path.islink(lastInc):
         logging.warning('This seems like the first run, skipping latest_inc link')
-        freeSpace = checkFreeSpace(baseDir, 1.5)
+        freeSpace = checkFreeSpace(baseDir, baseDir, 1.5)
     else:
-        freeSpace = checkFreeSpace(lastInc, 1.5)
+        freeSpace = checkFreeSpace(lastInc, baseDir, 1.5)
     if not freeSpace:
         logging.critical('Not enough free space!')
         sys.exit(1)
     else:
+        # First incremental
         if args.backupType == 'firstinc':
             logging.debug('Starting first incremental backup')
             status = incBackup('first')
@@ -204,6 +281,7 @@ else:
             else:
                 logging.info('First incremental backup sucessfull')
                 sys.exit(0)
+        # Normal incremental
         elif args.backupType == 'inc':
             logging.debug('Starting incremental backup')
             status = incBackup('normal')
@@ -213,6 +291,7 @@ else:
             else:
                 logging.info('Incremental backup sucessfull')
                 sys.exit(0)
+        # Last incremental
         elif args.backupType == 'lastinc':
             logging.debug('Starting last incremental backup')
             status = incBackup('last')
@@ -222,6 +301,7 @@ else:
             else:
                 logging.info('Last incremental backup sucessfull')
                 sys.exit(0)
+        # Somehow wrong type of backup
         else:
             logging.critical('No proper backup type set!')
             sys.exit(1)
