@@ -20,6 +20,10 @@ parser.add_argument('-s', '--settings',
     help='Settings file',
     type=str
     )
+parser.add_argument('-n', '--dryrun',
+    help='Dry run',
+    action="store_true"
+    )
 args = parser.parse_args()
 
 # Read settings from file
@@ -54,6 +58,13 @@ for m in mandatory_settings:
         logging.critical('Setting "' + m + '" is missing!')
         sys.exit(1)
 
+# Set defaults
+if 'databaseDir' not in settings or settings['databaseDir'] == '':
+    settings['databaseDir'] = '/var/lib/mysql'
+
+if 'socketPath' not in settings or settings['socketPath'] == '':
+    settings['socketPath'] = '/var/run/mysqld/mysqld.sock'
+
 
 # Setup variables
 # ---------------
@@ -64,6 +75,7 @@ dbpass = settings['dbpass']
 # Misc
 timeStamp = time.strftime("%Y-%m-%d_%H-%M-%S")
 # Directories
+databaseDir = settings['databaseDir']
 baseDir = settings['baseDir']
 secondaryBaseDir = settings['secondaryBaseDir']
 offsiteBaseDir = settings['offsiteBaseDir']
@@ -163,58 +175,68 @@ def runCommand(command):
         return 0
 
 
-def fullBackup():
+def fullBackup(copy):
     status = checkStatus(fullStatusFile)
     if status == 'started':
         logging.critical('Last full backup still running?!')
         return 1
 
-    # Check free disk space on secondary location
-    freeSpaceSecondary = checkFreeSpace(lastFull, secondaryBaseDir, 1.5)
-    if not freeSpaceSecondary:
-        logging.warning('Not enough free space on secondary location!')
-        copy = False
+    if args.dryrun:
+        logging.info('Would have set status file to "started"')
     else:
-        copy = True
-
-    setStatus(fullStatusFile, 'started')
+        setStatus(fullStatusFile, 'started')
 
     # Run the full backup
     logging.info('Running backup')
     command = "innobackupex --user={0} --password={1} --no-timestamp {2}/".format(dbuser, dbpass, targetDir)
-    status = runCommand(command)
-    if status == 1:
-        return 1
+    if args.dryrun:
+        logging.info('Running command: "' + command + '"')
+    else:
+        status = runCommand(command)
+        if status == 1:
+            return 1
 
     # Copy the unprepared backup to secondary location
     logging.info('Copying backup to secondary location')
     if copy:
         command = "cp -a {0} {1}/".format(targetDir, secondaryBaseDir)
-        status = runCommand(command)
-        if status == 1:
-            return 1
+        if args.dryrun:
+            logging.info('Running command: "' + command + '"')
+        else:
+            status = runCommand(command)
+            if status == 1:
+                return 1
     else:
         logging.warning('Skipping copy to secondary location, not enough free space!')
 
     # Prepare the full backup
     logging.info('Preparing backup')
     command = "innobackupex --apply-log --redo-only {0}/".format(targetDir)
-    status = runCommand(command)
-    if status == 1:
-        return 1
+    if args.dryrun:
+        logging.info('Running command: "' + command + '"')
+    else:
+        status = runCommand(command)
+        if status == 1:
+            return 1
 
     # Create latest_full link
-    try:
-        logging.debug('Creating symlink: "' + targetDir + '" <- "' + lastFull +'"')
-        os.symlink(targetDir, lastFull)
-    except OSError as exception:
-        if exception.errno == errno.EEXIST:
-            logging.debug('Removing old symlink')
-            os.remove(lastFull)
-            logging.debug('Recreating symlink')
+    if args.dryrun:
+        logging.info('Would have created symlink "' + targetDir + '" <- "' + lastFull +'"')
+    else:
+        try:
+            logging.debug('Creating symlink: "' + targetDir + '" <- "' + lastFull +'"')
             os.symlink(targetDir, lastFull)
+        except OSError as exception:
+            if exception.errno == errno.EEXIST:
+                logging.debug('Removing old symlink')
+                os.remove(lastFull)
+                logging.debug('Recreating symlink')
+                os.symlink(targetDir, lastFull)
 
-    setStatus(fullStatusFile, 'completed')
+    if args.dryrun:
+        logging.info('Would have set status file to "completed"')
+    else:
+        setStatus(fullStatusFile, 'completed')
 
     return
 
@@ -229,11 +251,15 @@ def incBackup(incType):
 # Check some important dirs
 logging.debug('Checking critical directories')
 
-for directory in criticalDirectories:
-    status = checkDirectory(directory)
-    if status == 1:
-        logging.critical('Backup failed!')
-        sys.exit(1)
+if args.dryrun:
+    for directory in criticalDirectories:
+        logging.info('Would have checked "' + directory + '"')
+else:
+    for directory in criticalDirectories:
+        status = checkDirectory(directory)
+        if status == 1:
+            logging.critical('Backup failed!')
+            sys.exit(1)
 
 
 # Run backup
@@ -243,15 +269,24 @@ for directory in criticalDirectories:
 if args.backupType == 'full':
     if not os.path.islink(lastFull):
         logging.warning('This seems like the first run, skipping latest_full link')
-        freeSpace = checkFreeSpace(baseDir, baseDir, 1.5)
+        # Check free space
+        freeSpace = checkFreeSpace(databaseDir, baseDir, 1.5)
+        freeSpaceSecondary = checkFreeSpace(databaseDir, secondaryBaseDir, 1.5)
     else:
         freeSpace = checkFreeSpace(lastFull, baseDir, 1.5)
+        freeSpaceSecondary = checkFreeSpace(lastFull, secondaryBaseDir, 1.5)
     if not freeSpace:
         logging.critical('Not enough free space!')
         sys.exit(1)
     else:
-        logging.debug('Starting full backup')
-        status = fullBackup()
+        if not freeSpaceSecondary:
+            logging.warning('Not enough free space on secondary location!')
+            logging.debug('Starting full backup, not copying to secondary location!')
+            status = fullBackup(copy=False)
+        else:
+            logging.debug('Starting full backup')
+            status = fullBackup(copy=True)
+
         if status == 1:
             logging.debug('Setting status file to failed')
             setStatus(fullStatusFile, 'failed')
@@ -264,7 +299,7 @@ if args.backupType == 'full':
 else:
     if not os.path.islink(lastInc):
         logging.warning('This seems like the first run, skipping latest_inc link')
-        freeSpace = checkFreeSpace(baseDir, baseDir, 1.5)
+        freeSpace = checkFreeSpace(databaseDir, baseDir, 1.5)
     else:
         freeSpace = checkFreeSpace(lastInc, baseDir, 1.5)
     if not freeSpace:
