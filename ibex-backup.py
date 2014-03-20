@@ -74,6 +74,7 @@ dbuser = settings['dbuser']
 dbpass = settings['dbpass']
 # Misc
 timeStamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+socketPath = settings['socketPath']
 # Directories
 databaseDir = settings['databaseDir']
 baseDir = settings['baseDir']
@@ -188,7 +189,7 @@ def fullBackup(copy):
 
     # Run the full backup
     logging.info('Running backup')
-    command = "innobackupex --user={0} --password={1} --no-timestamp {2}/".format(dbuser, dbpass, targetDir)
+    command = "innobackupex --user={0} --password={1} --socket={2} --no-timestamp {3}/".format(dbuser, dbpass, socketPath, targetDir)
     if args.dryrun:
         logging.info('Running command: "' + command + '"')
     else:
