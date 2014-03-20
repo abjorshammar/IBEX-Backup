@@ -133,6 +133,12 @@ def checkFreeSpace(path, partition, multiplicator):
 
 
 def setStatus(statFile, status):
+
+    # If dry run, return log statement
+    if args.dryrun:
+        logging.info('Would have written "' + status + '" to "' + statFile + '"')
+        return 0
+
     try:
         with open(statFile, 'w') as stat:
             logging.debug('Writing "' + status + '" to "' + statFile + '"')
@@ -155,7 +161,35 @@ def checkStatus(statFile):
         return None
 
 
+def checkLsn():
+    fullLsnCommand = "grep to_lsn ${0}/xtrabackup_checkpoints".format(lastFull)
+    cmd = shlex.split(fullLsnCommand)
+    fullLsn = Popen(cmd, stdout=PIPE)
+    fullLsn = fullLsn.communicate()[0]
+    fullLsn = fullLsn.split(' = ')[1]
+
+    incLsnCommand = "grep to_lsn ${0}/xtrabackup_checkpoints".format(lastInc)
+    cmd = shlex.split(incLsnCommand)
+    incLsn = Popen(cmd, stdout=PIPE)
+    incLsn = incLsn.communicate()[0]
+    incLsn = incLsn.split(' = ')[1]
+
+    print fullLsn
+    print incLsn
+
+    if fullLsn == incLsn:
+        return True
+    else:
+        return False
+
+
 def runCommand(command):
+
+    # If dry run, just return the command
+    if args.dryrun:
+        logging.info('Would run command: "' + command + '"')
+        return 0
+
     cmd = shlex.split(command)
     logging.debug('Running command: "' + command + '"')
 
@@ -182,43 +216,31 @@ def fullBackup(copy):
         logging.critical('Last full backup still running?!')
         return 1
 
-    if args.dryrun:
-        logging.info('Would have set status file to "started"')
-    else:
-        setStatus(fullStatusFile, 'started')
+    setStatus(fullStatusFile, 'started')
 
     # Run the full backup
     logging.info('Running backup')
     command = "innobackupex --user={0} --password={1} --socket={2} --no-timestamp {3}/".format(dbuser, dbpass, socketPath, targetDir)
-    if args.dryrun:
-        logging.info('Running command: "' + command + '"')
-    else:
-        status = runCommand(command)
-        if status == 1:
-            return 1
+    status = runCommand(command)
+    if status == 1:
+        return 1
 
     # Copy the unprepared backup to secondary location
     logging.info('Copying backup to secondary location')
     if copy:
         command = "cp -a {0} {1}/".format(targetDir, secondaryBaseDir)
-        if args.dryrun:
-            logging.info('Running command: "' + command + '"')
-        else:
-            status = runCommand(command)
-            if status == 1:
-                return 1
+        status = runCommand(command)
+        if status == 1:
+            return 1
     else:
         logging.warning('Skipping copy to secondary location, not enough free space!')
 
     # Prepare the full backup
     logging.info('Preparing backup')
     command = "innobackupex --apply-log --redo-only {0}/".format(targetDir)
-    if args.dryrun:
-        logging.info('Running command: "' + command + '"')
-    else:
-        status = runCommand(command)
-        if status == 1:
-            return 1
+    status = runCommand(command)
+    if status == 1:
+        return 1
 
     # Create latest_full link
     if args.dryrun:
@@ -234,16 +256,71 @@ def fullBackup(copy):
                 logging.debug('Recreating symlink')
                 os.symlink(targetDir, lastFull)
 
-    if args.dryrun:
-        logging.info('Would have set status file to "completed"')
+    setStatus(fullStatusFile, 'completed')
+
+    return 0
+
+
+def incBackup(incType, copy):
+    status = checkStatus(incStatusFile)
+    if status == 'started':
+        logging.critical('Last inc backup still running?!')
+        return 1
+
+    if incType == 'first':
+        incBaseDir = lastFull
     else:
-        setStatus(fullStatusFile, 'completed')
+        incBaseDir = lastInc
+        if not checkLsn():
+            logging.critical('Last backup is not fully prepared!')
+            return 1
 
-    return
+    setStatus(incStatusFile, 'started')
 
+    # Run the incremental backup
+    logging.info('Running backup')
+    command = "innobackupex --user=${0} --password=${1} --incremental ${2} --incremental-basedir=${3}/ --no-timestamp".format(dbuser, dbpass, targetDir, incBaseDir)
+    status = runCommand(command)
+    if status == 1:
+        return 1
 
-def incBackup(incType):
-    return
+    # Copy the unprepared backup to secondary location
+    logging.info('Copying backup to secondary location')
+    if copy:
+        command = "cp -a {0} {1}/".format(targetDir, secondaryBaseDir)
+        status = runCommand(command)
+        if status == 1:
+            return 1
+    else:
+        logging.warning('Skipping copy to secondary location, not enough free space!')
+
+    # Prepare the incremental backup
+    logging.info('Preparing backup')
+    if incType == 'lastinc':
+        command = "innobackupex --apply-log ${0}/ --incremental-dir=${1}/".format(lastFull, targetDir)
+    else:
+        command = "innobackupex --apply-log --redo-only ${0}/ --incremental-dir=${1}/".format(lastFull, targetDir)
+    status = runCommand(command)
+    if status == 1:
+        return 1
+
+    # Create latest_inc link
+    if args.dryrun:
+        logging.info('Would have created symlink "' + targetDir + '" <- "' + lastInc +'"')
+    else:
+        try:
+            logging.debug('Creating symlink: "' + targetDir + '" <- "' + lastInc +'"')
+            os.symlink(targetDir, lastInc)
+        except OSError as exception:
+            if exception.errno == errno.EEXIST:
+                logging.debug('Removing old symlink')
+                os.remove(lastInc)
+                logging.debug('Recreating symlink')
+                os.symlink(targetDir, lastInc)
+
+    setStatus(incStatusFile, 'completed')
+
+    return 0
 
 
 # Main
@@ -301,43 +378,50 @@ else:
     if not os.path.islink(lastInc):
         logging.warning('This seems like the first run, skipping latest_inc link')
         freeSpace = checkFreeSpace(databaseDir, baseDir, 1.5)
+        freeSpaceSecondary = checkFreeSpace(databaseDir, secondaryBaseDir, 1.5)
     else:
         freeSpace = checkFreeSpace(lastInc, baseDir, 1.5)
+        freeSpaceSecondary = checkFreeSpace(lastInc, secondaryBaseDir, 1.5)
     if not freeSpace:
         logging.critical('Not enough free space!')
         sys.exit(1)
     else:
-        # First incremental
-        if args.backupType == 'firstinc':
-            logging.debug('Starting first incremental backup')
-            status = incBackup('first')
-            if status == 1:
-                logging.critical('First incremental backup failed!')
-                sys.exit(1)
-            else:
-                logging.info('First incremental backup sucessfull')
-                sys.exit(0)
-        # Normal incremental
-        elif args.backupType == 'inc':
-            logging.debug('Starting incremental backup')
-            status = incBackup('normal')
-            if status == 1:
-                logging.critical('Incremental backup failed!')
-                sys.exit(1)
-            else:
-                logging.info('Incremental backup sucessfull')
-                sys.exit(0)
-        # Last incremental
-        elif args.backupType == 'lastinc':
-            logging.debug('Starting last incremental backup')
-            status = incBackup('last')
-            if status == 1:
-                logging.critical('Last incremental backup failed!')
-                sys.exit(1)
-            else:
-                logging.info('Last incremental backup sucessfull')
-                sys.exit(0)
-        # Somehow wrong type of backup
+        if not freeSpaceSecondary:
+            logging.warning('Not enough free space on secondary location!')
+            logging.debug('Starting incremental backup, not copying to secondary location!')
+            copy = False
         else:
-            logging.critical('No proper backup type set!')
-            sys.exit(1)
+            # First incremental
+            if args.backupType == 'firstinc':
+                logging.debug('Starting first incremental backup')
+                status = incBackup('first', copy=copy)
+                if status == 1:
+                    logging.critical('First incremental backup failed!')
+                    sys.exit(1)
+                else:
+                    logging.info('First incremental backup sucessfull')
+                    sys.exit(0)
+            # Normal incremental
+            elif args.backupType == 'inc':
+                logging.debug('Starting incremental backup')
+                status = incBackup('normal', copy=copy)
+                if status == 1:
+                    logging.critical('Incremental backup failed!')
+                    sys.exit(1)
+                else:
+                    logging.info('Incremental backup sucessfull')
+                    sys.exit(0)
+            # Last incremental
+            elif args.backupType == 'lastinc':
+                logging.debug('Starting last incremental backup')
+                status = incBackup('last', copy=copy)
+                if status == 1:
+                    logging.critical('Last incremental backup failed!')
+                    sys.exit(1)
+                else:
+                    logging.info('Last incremental backup sucessfull')
+                    sys.exit(0)
+            # Somehow wrong type of backup
+            else:
+                logging.critical('No proper backup type set!')
+                sys.exit(1)
