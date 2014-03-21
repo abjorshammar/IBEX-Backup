@@ -368,7 +368,7 @@ def incBackup(incType, copy=True, offsite=True):
                 logging.debug('Recreating symlink')
                 os.symlink(targetDir, lastInc)
 
-    if incType == 'lastInc':
+    if args.backupType == 'lastinc':
         # Get name of full backup
         logging.debug('Getting name of full backup')
         command = "readlink {0}".format(lastFull)
@@ -389,15 +389,26 @@ def incBackup(incType, copy=True, offsite=True):
             return 1
 
         # Tar and compress newly prepared full backup
+        freeSpace = checkFreeSpace(lastFull, baseDir, 1)
+        if not freeSpace:
+            logging.warning('Not enough free space, skipping archiving!')
+            return 1
+
         logging.info('Archiving full backup')
-        command = "tar caf {0}/prepared/{1}.tar.bz2 {0}/prepared/{1}".format(baseDir, fullName)
+        tarball = "{0}/prepared/{1}.tar.bz2".format(baseDir, fullName)
+        command = "tar caf {0} {1}/prepared/{2}".format(tarball, baseDir, fullName)
         status = runCommand(command)
         if status == 1:
             return 1
 
         if offsite:
+            freeSpace = checkFreeSpace(tarball, offsiteBaseDir, 1)
+            if not freeSpace:
+                logging.warning('Not enough free space, not moving archive!')
+                return 1
+
             # Move newly created tar.gz-file to online share
-            command = "mv {0}/prepared/{1}.tar.bz2 {2}/".format(baseDir, fullName, offsiteBaseDir)
+            command = "mv {0} {1}/".format(tarball, offsiteBaseDir)
             status = runCommand(command)
             if status == 1:
                 return 1
@@ -457,7 +468,7 @@ if args.backupType == 'full':
             logging.critical('Full backup failed!')
             sys.exit(1)
         else:
-            logging.info('Full backup sucessfull')
+            logging.info('Full backup sucessful')
             sys.exit(0)
 # Incremental
 else:
@@ -486,7 +497,7 @@ else:
                     logging.critical('First incremental backup failed!')
                     sys.exit(1)
                 else:
-                    logging.info('First incremental backup sucessfull')
+                    logging.info('First incremental backup sucessful')
                     sys.exit(0)
             # Normal incremental
             elif args.backupType == 'inc':
@@ -496,7 +507,7 @@ else:
                     logging.critical('Incremental backup failed!')
                     sys.exit(1)
                 else:
-                    logging.info('Incremental backup sucessfull')
+                    logging.info('Incremental backup sucessful')
                     sys.exit(0)
             # Last incremental
             elif args.backupType == 'lastinc':
@@ -506,7 +517,7 @@ else:
                     logging.critical('Last incremental backup failed!')
                     sys.exit(1)
                 else:
-                    logging.info('Last incremental backup sucessfull')
+                    logging.info('Last incremental backup sucessful')
                     sys.exit(0)
             # Somehow wrong type of backup
             else:
