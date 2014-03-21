@@ -115,6 +115,7 @@ def checkDirectory(directory):
 
 def checkFreeSpace(path, partition, multiplicator):
     # Check the backup size
+    path = path + '/'
     du = Popen(['du', '-s', path], stdout=PIPE)
     output = du.communicate()[0]
     backupSize = output.split('\t')[0]
