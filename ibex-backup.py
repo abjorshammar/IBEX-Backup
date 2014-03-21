@@ -199,7 +199,7 @@ def runCommandWithOutput(command):
     logging.debug('Running command: "' + command + '"')
 
     proc = Popen(cmd, stdout=PIPE, stderr=STDOUT)
-    output = proc.communicate()[0]
+    output = proc.communicate()[0].strip()
 
     if proc.returncode != 0:
         logging.critical('Command failed with return code "' + str(proc.returncode) + '"')
@@ -319,7 +319,7 @@ def incBackup(incType, copy=True, offsite=True):
 
     # Run the incremental backup
     logging.info('Running backup')
-    command = "innobackupex --user={0} --password={1} --incremental {2} --incremental-basedir={3}/ --no-timestamp".format(dbuser, dbpass, targetDir, incBaseDir)
+    command = "innobackupex --user={0} --password={1} --socket={2} --incremental {3} --incremental-basedir={4}/ --no-timestamp".format(dbuser, dbpass, socketPath, targetDir, incBaseDir)
     status = runCommand(command)
     if status == 1:
         return 1
