@@ -6,7 +6,7 @@ import time
 import argparse
 import logging
 import shlex
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, STDOUT
 
 # Read options from command line
 parser = argparse.ArgumentParser()
@@ -16,13 +16,17 @@ parser.add_argument('backupType',
     choices=['full', 'firstinc', 'inc', 'lastinc'],
     default='/etc/ibex-backup/settings.conf'
     )
-parser.add_argument('-s', '--settings',
-    help='Settings file',
-    type=str
+parser.add_argument('-o', '--no-offsite',
+    help='Does not copy the archived backup offsite',
+    action="store_true"
     )
 parser.add_argument('-n', '--dryrun',
     help='Dry run',
     action="store_true"
+    )
+parser.add_argument('-s', '--settings',
+    help='Settings file',
+    type=str
     )
 args = parser.parse_args()
 
@@ -75,6 +79,7 @@ dbpass = settings['dbpass']
 # Misc
 timeStamp = time.strftime("%Y-%m-%d_%H-%M-%S")
 socketPath = settings['socketPath']
+offsite = args.no_offsite
 # Directories
 databaseDir = settings['databaseDir']
 baseDir = settings['baseDir']
@@ -161,28 +166,6 @@ def checkStatus(statFile):
         return None
 
 
-def checkLsn():
-    fullLsnCommand = "grep to_lsn ${0}/xtrabackup_checkpoints".format(lastFull)
-    cmd = shlex.split(fullLsnCommand)
-    fullLsn = Popen(cmd, stdout=PIPE)
-    fullLsn = fullLsn.communicate()[0]
-    fullLsn = fullLsn.split(' = ')[1]
-
-    incLsnCommand = "grep to_lsn ${0}/xtrabackup_checkpoints".format(lastInc)
-    cmd = shlex.split(incLsnCommand)
-    incLsn = Popen(cmd, stdout=PIPE)
-    incLsn = incLsn.communicate()[0]
-    incLsn = incLsn.split(' = ')[1]
-
-    print fullLsn
-    print incLsn
-
-    if fullLsn == incLsn:
-        return True
-    else:
-        return False
-
-
 def runCommand(command):
 
     # If dry run, just return the command
@@ -208,6 +191,60 @@ def runCommand(command):
     else:
         logging.debug('Command successfully finished with returncode "' + str(proc.returncode) + '"')
         return 0
+
+
+def runCommandWithOutput(command):
+
+    cmd = shlex.split(command)
+    logging.debug('Running command: "' + command + '"')
+
+    proc = Popen(cmd, stdout=PIPE, stderr=STDOUT)
+    output = proc.communicate()[0]
+
+    if proc.returncode != 0:
+        logging.critical('Command failed with return code "' + str(proc.returncode) + '"')
+        logging.critical(str(output.strip()))
+        returnval = 1
+    else:
+        logging.debug('Command successfully finished with returncode "' + str(proc.returncode) + '"')
+        logging.debug('Command output "' + str(output) + '"')
+        returnval = 0
+
+    return (output, returnval)
+
+
+def checkBackup(checkType):
+    if checkType == 'backupType':
+        backupTypeCommand = "grep backup_type {0}/xtrabackup_checkpoints".format(lastFull)
+        result = runCommandWithOutput(backupTypeCommand)
+        status = result[1]
+        if status != 0:
+            return False
+        else:
+            check = result[0].split(' = ')[1]
+
+        if check != 'full-prepared':
+            return False
+        else:
+            return True
+
+    elif checkType == 'lsn':
+        fullLsnCommand = "grep to_lsn {0}/xtrabackup_checkpoints".format(lastFull)
+        fullLsn = runCommandWithOutput(fullLsnCommand).split(' = ')[1]
+
+        incLsnCommand = "grep to_lsn {0}/xtrabackup_checkpoints".format(lastInc)
+        incLsn = runCommandWithOutput(incLsnCommand).split(' = ')[1]
+
+        logging.debug('Full backup LSN "' + str(fullLsn) + '"')
+        logging.debug('Incremental backup LSN "' + str(incLsn) + '"')
+
+        if fullLsn == incLsn:
+            return True
+        else:
+            return False
+
+    else:
+        return False
 
 
 def fullBackup(copy):
@@ -261,7 +298,7 @@ def fullBackup(copy):
     return 0
 
 
-def incBackup(incType, copy):
+def incBackup(incType, copy=True, offsite=True):
     status = checkStatus(incStatusFile)
     if status == 'started':
         logging.critical('Last inc backup still running?!')
@@ -269,9 +306,12 @@ def incBackup(incType, copy):
 
     if incType == 'first':
         incBaseDir = lastFull
+        if not checkBackup('backupType'):
+            logging.critical('Full backup is not fully prepared!')
+            return 1
     else:
         incBaseDir = lastInc
-        if not checkLsn():
+        if not checkBackup('lsn'):
             logging.critical('Last backup is not fully prepared!')
             return 1
 
@@ -279,7 +319,7 @@ def incBackup(incType, copy):
 
     # Run the incremental backup
     logging.info('Running backup')
-    command = "innobackupex --user=${0} --password=${1} --incremental ${2} --incremental-basedir=${3}/ --no-timestamp".format(dbuser, dbpass, targetDir, incBaseDir)
+    command = "innobackupex --user={0} --password={1} --incremental {2} --incremental-basedir={3}/ --no-timestamp".format(dbuser, dbpass, targetDir, incBaseDir)
     status = runCommand(command)
     if status == 1:
         return 1
@@ -297,9 +337,9 @@ def incBackup(incType, copy):
     # Prepare the incremental backup
     logging.info('Preparing backup')
     if incType == 'lastinc':
-        command = "innobackupex --apply-log ${0}/ --incremental-dir=${1}/".format(lastFull, targetDir)
+        command = "innobackupex --apply-log {0}/ --incremental-dir={1}/".format(lastFull, targetDir)
     else:
-        command = "innobackupex --apply-log --redo-only ${0}/ --incremental-dir=${1}/".format(lastFull, targetDir)
+        command = "innobackupex --apply-log --redo-only {0}/ --incremental-dir={1}/".format(lastFull, targetDir)
     status = runCommand(command)
     if status == 1:
         return 1
@@ -317,6 +357,42 @@ def incBackup(incType, copy):
                 os.remove(lastInc)
                 logging.debug('Recreating symlink')
                 os.symlink(targetDir, lastInc)
+
+    if incType == 'lastInc':
+        # Get name of full backup
+        logging.debug('Getting name of full backup')
+        command = "readlink {0}".format(lastFull)
+        result = runCommandWithOutput(command)
+        status = result[1]
+        if status != 0:
+            return 1
+        else:
+            fullName = result[0].split('/')[-1]
+
+        logging.debug('Full backup name: "' + fullName + '"')
+
+        # Prepare the full backup
+        logging.info('Preparing full backup')
+        command = "innobackupex --apply-log {0}/".format(lastFull)
+        status = runCommand(command)
+        if status == 1:
+            return 1
+
+        # Tar and compress newly prepared full backup
+        logging.info('Archiving full backup')
+        command = "tar caf {0}/prepared/{1}.tar.bz2 {0}/prepared/{1}".format(baseDir, fullName)
+        status = runCommand(command)
+        if status == 1:
+            return 1
+
+        if offsite:
+            # Move newly created tar.gz-file to online share
+            command = "mv {0}/prepared/{1}.tar.bz2 {2}/".format(baseDir, fullName, offsiteBaseDir)
+            status = runCommand(command)
+            if status == 1:
+                return 1
+        else:
+            logging.warning('Skipping move to offsfite location')
 
     setStatus(incStatusFile, 'completed')
 
@@ -391,6 +467,7 @@ else:
             logging.debug('Starting incremental backup, not copying to secondary location!')
             copy = False
         else:
+            copy = True
             # First incremental
             if args.backupType == 'firstinc':
                 logging.debug('Starting first incremental backup')
