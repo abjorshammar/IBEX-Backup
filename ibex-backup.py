@@ -230,10 +230,20 @@ def checkBackup(checkType):
 
     elif checkType == 'lsn':
         fullLsnCommand = "grep to_lsn {0}/xtrabackup_checkpoints".format(lastFull)
-        fullLsn = runCommandWithOutput(fullLsnCommand).split(' = ')[1]
+        result = runCommandWithOutput(fullLsnCommand)
+        status = result[1]
+        if status != 0:
+            return False
+        else:
+            fullLsn = result[0].split(' = ')[1]
 
         incLsnCommand = "grep to_lsn {0}/xtrabackup_checkpoints".format(lastInc)
-        incLsn = runCommandWithOutput(incLsnCommand).split(' = ')[1]
+        result = runCommandWithOutput(incLsnCommand)
+        status = result[1]
+        if status != 0:
+            return False
+        else:
+            incLsn = result[0].split(' = ')[1]
 
         logging.debug('Full backup LSN "' + str(fullLsn) + '"')
         logging.debug('Incremental backup LSN "' + str(incLsn) + '"')
