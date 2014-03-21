@@ -402,7 +402,11 @@ def incBackup(incType, copy=True, offsite=True):
             return 1
 
         if offsite:
-            freeSpace = checkFreeSpace(tarball, offsiteBaseDir, 1)
+            if args.dryrun:
+                freeSpace = checkFreeSpace(lastFull, baseDir, 1)
+            else:
+                freeSpace = checkFreeSpace(tarball, offsiteBaseDir, 1)
+
             if not freeSpace:
                 logging.warning('Not enough free space, not moving archive!')
                 return 1
