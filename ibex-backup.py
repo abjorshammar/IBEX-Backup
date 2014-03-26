@@ -94,6 +94,9 @@ lastInc = baseDir + '/latest_inc'
 # Status files
 fullStatusFile = settings['logDir'] + '/status-full-backup'
 incStatusFile = settings['logDir'] + '/status-inc-backup'
+# Monitor files
+fullMonitorFile = settings['logDir'] + '/monitor-full-backup'
+incMonitorFile = settings['logDir'] + '/monitor-inc-backup'
 
 
 # Functions
@@ -152,6 +155,29 @@ def setStatus(statFile, status):
         return
     except IOError:
         logging.critical('Unable to write "' + statFile + '" file')
+        sys.exit(1)
+
+
+def setMonitor(monitorFile, status, message):
+
+    # Get a current timestamp
+    currentTimeStamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+
+    # Line to be put in to monitor file
+    line = "{0}:{1}:{2}".format(currentTimeStamp, status.upper(), message)
+
+    # If dry run, return log statement
+    if args.dryrun:
+        logging.info('Would have written "' + line + '" to "' + monitorFile + '"')
+        return 0
+
+    try:
+        with open(monitorFile, 'a') as f:
+            logging.debug('Writing "' + line + '" to "' + monitorFile + '"')
+            f.write(line)
+        return
+    except IOError:
+        logging.critical('Unable to write to"' + monitorFile + '"')
         sys.exit(1)
 
 
@@ -438,7 +464,12 @@ else:
     for directory in criticalDirectories:
         status = checkDirectory(directory)
         if status == 1:
-            logging.critical('Backup failed!')
+            msg = 'Directory "' + directory + '" is missing, backup failed!'
+            logging.critical(msg)
+            if args.backupType == 'full':
+                setMonitor(fullMonitorFile, 'critical', msg)
+            else:
+                setMonitor(incMonitorFile, 'critical', msg)
             sys.exit(1)
 
 
@@ -456,12 +487,17 @@ if args.backupType == 'full':
         freeSpace = checkFreeSpace(lastFull, baseDir, 1.5)
         freeSpaceSecondary = checkFreeSpace(lastFull, secondaryBaseDir, 1.5)
     if not freeSpace:
-        logging.critical('Not enough free space!')
+        msg = 'Not enough free space!'
+        logging.critical(msg)
+        setMonitor(fullMonitorFile, 'critical', msg)
         sys.exit(1)
     else:
         if not freeSpaceSecondary:
-            logging.warning('Not enough free space on secondary location!')
+            msg = 'Not enough free space on secondary location!'
+            logging.warning(msg)
+            setMonitor(fullMonitorFile, 'warning', msg)
             logging.debug('Starting full backup, not copying to secondary location!')
+
             status = fullBackup(copy=False)
         else:
             logging.debug('Starting full backup')
@@ -470,10 +506,14 @@ if args.backupType == 'full':
         if status == 1:
             logging.debug('Setting status file to failed')
             setStatus(fullStatusFile, 'failed')
-            logging.critical('Full backup failed!')
+            msg = 'Full backup failed!'
+            logging.critical(msg)
+            setMonitor(fullMonitorFile, 'critical', msg)
             sys.exit(1)
         else:
-            logging.info('Full backup sucessful')
+            msg = 'Full backup sucessful'
+            logging.info(msg)
+            setMonitor(fullMonitorFile, 'ok', msg)
             sys.exit(0)
 # Incremental
 else:
@@ -485,11 +525,15 @@ else:
         freeSpace = checkFreeSpace(lastInc, baseDir, 1.5)
         freeSpaceSecondary = checkFreeSpace(lastInc, secondaryBaseDir, 1.5)
     if not freeSpace:
-        logging.critical('Not enough free space!')
+        msg = 'Not enough free space!'
+        logging.critical(msg)
+        setMonitor(incMonitorFile, 'critical', msg)
         sys.exit(1)
     else:
         if not freeSpaceSecondary:
-            logging.warning('Not enough free space on secondary location!')
+            msg = 'Not enough free space on secondary location!'
+            logging.warning(msg)
+            setMonitor(incMonitorFile, 'warning', msg)
             logging.debug('Starting incremental backup, not copying to secondary location!')
             copy = False
         else:
@@ -499,32 +543,64 @@ else:
                 logging.debug('Starting first incremental backup')
                 status = incBackup('first', copy=copy)
                 if status == 1:
-                    logging.critical('First incremental backup failed!')
+                    msg = 'First incremental backup failed!'
+                    logging.critical(msg)
+                    setMonitor(incMonitorFile, 'critical', msg)
                     sys.exit(1)
                 else:
-                    logging.info('First incremental backup sucessful')
+                    if copy is True:
+                        msg = 'First incremental backup sucessful'
+                        logging.info(msg)
+                        setMonitor(incMonitorFile, 'ok', msg)
+                    else:
+                        msg = 'First incremental backup sucessful, without copy'
+                        logging.warning(msg)
+                        setMonitor(incMonitorFile, 'warning', msg)
                     sys.exit(0)
             # Normal incremental
             elif args.backupType == 'inc':
                 logging.debug('Starting incremental backup')
                 status = incBackup('normal', copy=copy)
                 if status == 1:
-                    logging.critical('Incremental backup failed!')
+                    msg = 'Incremental backup failed!'
+                    logging.critical(msg)
+                    setMonitor(incMonitorFile, 'critical', msg)
                     sys.exit(1)
                 else:
-                    logging.info('Incremental backup sucessful')
+                    if copy is True:
+                        msg = 'Incremental backup sucessful'
+                        logging.info(msg)
+                        setMonitor(incMonitorFile, 'ok', msg)
+                    else:
+                        msg = 'Incremental backup sucessful, without copy'
+                        logging.warning(msg)
+                        setMonitor(incMonitorFile, 'warning', msg)
                     sys.exit(0)
             # Last incremental
             elif args.backupType == 'lastinc':
                 logging.debug('Starting last incremental backup')
                 status = incBackup('last', copy=copy)
                 if status == 1:
-                    logging.critical('Last incremental backup failed!')
+                    msg = 'Last incremental backup failed!'
+                    logging.critical(msg)
+                    setMonitor(incMonitorFile, 'critical', msg)
                     sys.exit(1)
                 else:
-                    logging.info('Last incremental backup sucessful')
+                    if copy is True:
+                        msg = 'Last incremental backup sucessful'
+                        logging.info(msg)
+                        setMonitor(incMonitorFile, 'ok', msg)
+                    else:
+                        msg = 'Last incremental backup sucessful, without copy'
+                        logging.warning(msg)
+                        setMonitor(incMonitorFile, 'warning', msg)
                     sys.exit(0)
             # Somehow wrong type of backup
             else:
-                logging.critical('No proper backup type set!')
+                msg = 'No proper backup type set!'
+                logging.critical(msg)
+                if args.backupType == 'full':
+                    setMonitor(fullMonitorFile, 'critical', msg)
+                else:
+                    setMonitor(incMonitorFile, 'critical', msg)
                 sys.exit(1)
