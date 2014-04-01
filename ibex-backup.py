@@ -429,6 +429,7 @@ def incBackup(incType, copy=True, offsite=True):
             return 1
 
         if offsite:
+            logging.info('Moving archive to offsite location')
             if args.dryrun:
                 freeSpace = checkFreeSpace(lastFull, baseDir, 1)
             else:
@@ -443,8 +444,10 @@ def incBackup(incType, copy=True, offsite=True):
             status = runCommand(command)
             if status == 1:
                 return 1
+            else:
+                logging.debug('Move successful')
         else:
-            logging.warning('Skipping move to offsfite location')
+            logging.warning('Skipping move to offsite location')
 
     setStatus(incStatusFile, 'completed')
 
