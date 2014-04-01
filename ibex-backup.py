@@ -18,7 +18,7 @@ parser.add_argument('backupType',
     )
 parser.add_argument('-o', '--no-offsite',
     help='Does not copy the archived backup offsite',
-    action="store_true"
+    action="store_false"
     )
 parser.add_argument('-n', '--dryrun',
     help='Dry run',
@@ -79,7 +79,6 @@ dbpass = settings['dbpass']
 # Misc
 timeStamp = time.strftime("%Y-%m-%d_%H-%M-%S")
 socketPath = settings['socketPath']
-offsite = args.no_offsite
 # Directories
 databaseDir = settings['databaseDir']
 baseDir = settings['baseDir']
@@ -582,7 +581,7 @@ else:
             # Last incremental
             elif args.backupType == 'lastinc':
                 logging.debug('Starting last incremental backup')
-                status = incBackup('last', copy=copy)
+                status = incBackup('last', copy=copy, offsite=args.no_offsite)
                 if status == 1:
                     msg = 'Last incremental backup failed!'
                     logging.critical(msg)
