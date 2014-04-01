@@ -116,8 +116,16 @@ def checkDirectory(directory):
 
 
 def checkFreeSpace(path, partition, multiplicator):
+    # Check if the path is a path or file
+    if os.path.isfile(path):
+        if not os.path.islink(path):
+            logging.debug(path + ' is a file')
+        else:
+            path = path + '/'
+    else:
+        path = path + '/'
+
     # Check the backup size
-    path = path + '/'
     du = Popen(['du', '-s', path], stdout=PIPE)
     output = du.communicate()[0]
     backupSize = output.split('\t')[0]
