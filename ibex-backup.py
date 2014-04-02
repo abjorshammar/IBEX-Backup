@@ -171,7 +171,7 @@ def setMonitor(monitorFile, status, message):
     currentTimeStamp = time.strftime("%Y-%m-%d_%H-%M-%S")
 
     # Line to be put in to monitor file
-    line = "{0}:{1}:{2}".format(currentTimeStamp, status.upper(), message)
+    line = "{0}:{1}:{2}\n".format(currentTimeStamp, status.upper(), message)
 
     # If dry run, return log statement
     if args.dryrun:
