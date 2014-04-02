@@ -26,8 +26,9 @@ function cleandir {
 	
 	# Set variables
 	local _timeInHours=`expr ${_timeInMinutes} / 60`
-	local _command="find ${_cleanDir}/* -type d -mmin +${_timeInMinutes}"
-	local _rmCommand="${_command} -delete -print"
+	local _command="find ${_cleanDir} -maxdepth 1 -type d -mmin +${_timeInMinutes}"
+	local _captureCommand="-print0"
+	local _rmCommand="xargs -0 rm -rf"
 
 	printf "Cleanup started `date +"%d-%m-%Y_%T"`\n\n"
 	printf "Removing folders older then ${_timeInHours} hours in ${_cleanDir}..."
@@ -35,7 +36,8 @@ function cleandir {
 		if [[ ${_verbose} == true ]]; then
 			printf "\nDoing a verbose dry run...\n\n"
 			${_command}
-			printf "\ndone\n\n"
+			_lines=$(${_command} | wc -l)
+			printf "\nDone!\nWould have removed ${_lines} folders.\n\n"
 		else
 			printf "\nDoing a dry run..."
 			_lines=$(${_command} | wc -l)
@@ -44,11 +46,14 @@ function cleandir {
 	else
 		if [[ ${_verbose} == true ]]; then
 			printf "\n\n"
-			${_rmCommand}
-			printf "\nCleanup done!\n\n"
+			${_command}
+			_lines=$(${_command} | wc -l)
+			${_command} ${_captureCommand} | ${_rmCommand}
+			printf "\nCleanup done!\nRemoved ${_lines} folders.\n\n"
 		else
-			_lines=$(${_rmCommand} | wc -l)
-			printf "done!\nRemoved ${_lines} folders.\n\n"
+			_lines=$(${_command} | wc -l)
+			${_command} ${_captureCommand} | ${_rmCommand}
+			printf "Done!\nRemoved ${_lines} folders.\n\n"
 		fi
 	fi
 	
