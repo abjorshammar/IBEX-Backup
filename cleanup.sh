@@ -15,6 +15,7 @@ usage: $0 options
   Options:
     -h   Show this message
     -d   Directory to clean
+    -f   Perform cleanup of files instead of directories within the specified directory
     -t   Time in minutes (Dirs older will be deleted)
     -n   Dry run (Will not delete anything)
     -v   Verbose
@@ -27,41 +28,73 @@ function cleandir {
 	# Set variables
 	local _timeInHours=`expr ${_timeInMinutes} / 60`
 	local _command="find ${_cleanDir} -maxdepth 1 -type d -mmin +${_timeInMinutes}"
+	local _commandFiles="find ${_cleanDir} -maxdepth 1 -type f -mmin +${_timeInMinutes}"
 	local _captureCommand="-print0"
 	local _rmCommand="xargs -0 rm -rf"
 
-	printf "Cleanup started `date +"%d-%m-%Y_%T"`\n\n"
-	printf "Removing folders older then ${_timeInHours} hours in ${_cleanDir}..."
-	if [[ ${_dryRun} == true ]]; then
-		if [[ ${_verbose} == true ]]; then
-			printf "\nDoing a verbose dry run...\n\n"
-			${_command}
-			_lines=$(${_command} | wc -l)
-			printf "\nDone!\nWould have removed ${_lines} folders.\n\n"
-		else
-			printf "\nDoing a dry run..."
-			_lines=$(${_command} | wc -l)
-			printf "done!\nWould have removed ${_lines} folders.\n\n"
-		fi
+	# Removing files
+	if [[ ${_cleanFiles} == true ]]; then
+		printf "Cleanup started `date +"%d-%m-%Y_%T"`\n\n"
+	        printf "Removing files older then ${_timeInHours} hours in ${_cleanDir}..."
+        	if [[ ${_dryRun} == true ]]; then
+                	if [[ ${_verbose} == true ]]; then
+                        	printf "\nDoing a verbose dry run...\n\n"
+	                        ${_commandFiles}
+        	                _lines=$(${_commandFiles} | wc -l)
+                	        printf "\nDone!\nWould have removed ${_lines} files.\n\n"
+	                else
+        	                printf "\nDoing a dry run..."
+                	        _lines=$(${_commandFiles} | wc -l)
+                        	printf "done!\nWould have removed ${_lines} files.\n\n"
+	                fi
+	        else
+        	        if [[ ${_verbose} == true ]]; then
+                	        printf "\n\n"
+                        	${_commandFiles}
+	                        _lines=$(${_commandFiles} | wc -l)
+        	                ${_commandFiles} ${_captureCommand} | ${_rmCommand}
+                	        printf "\nCleanup done!\nRemoved ${_lines} files.\n\n"
+	                else
+        	                _lines=$(${_commandFiles} | wc -l)
+                	        ${_commandFiles} ${_captureCommand} | ${_rmCommand}
+                        	printf "Done!\nRemoved ${_lines} files.\n\n"
+	                fi
+        	fi
+
+	# Removing folders
 	else
-		if [[ ${_verbose} == true ]]; then
-			printf "\n\n"
-			${_command}
-			_lines=$(${_command} | wc -l)
-			${_command} ${_captureCommand} | ${_rmCommand}
-			printf "\nCleanup done!\nRemoved ${_lines} folders.\n\n"
+		printf "Cleanup started `date +"%d-%m-%Y_%T"`\n\n"
+		printf "Removing folders older then ${_timeInHours} hours in ${_cleanDir}..."
+		if [[ ${_dryRun} == true ]]; then
+			if [[ ${_verbose} == true ]]; then
+				printf "\nDoing a verbose dry run...\n\n"
+				${_command}
+				_lines=$(${_command} | wc -l)
+				printf "\nDone!\nWould have removed ${_lines} folders.\n\n"
+			else
+				printf "\nDoing a dry run..."
+				_lines=$(${_command} | wc -l)
+				printf "done!\nWould have removed ${_lines} folders.\n\n"
+			fi
 		else
-			_lines=$(${_command} | wc -l)
-			${_command} ${_captureCommand} | ${_rmCommand}
-			printf "Done!\nRemoved ${_lines} folders.\n\n"
+			if [[ ${_verbose} == true ]]; then
+				printf "\n\n"
+				${_command}
+				_lines=$(${_command} | wc -l)
+				${_command} ${_captureCommand} | ${_rmCommand}
+				printf "\nCleanup done!\nRemoved ${_lines} folders.\n\n"
+			else
+				_lines=$(${_command} | wc -l)
+				${_command} ${_captureCommand} | ${_rmCommand}
+				printf "Done!\nRemoved ${_lines} folders.\n\n"
+			fi
 		fi
 	fi
-	
 }
 
 # Main
 
-while getopts “hd:t:nv” _option
+while getopts "hd:t:fnv" _option
 do
 	case ${_option} in
 		h)
@@ -69,11 +102,14 @@ do
 			exit 1
 			;;
 		d)
-			 _cleanDir=$OPTARG
-			 ;;
+			_cleanDir=$OPTARG
+			;;
 		t)
 			_timeInMinutes=$OPTARG
 			;;
+		f)
+			_cleanFiles=true
+                        ;;
 		n)
 			_dryRun=true
 			;;
