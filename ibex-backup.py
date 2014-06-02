@@ -434,6 +434,8 @@ def incBackup(incType, copy=True, offsite=True):
         status = runCommand(command)
         if status == 1:
             return 1
+	else:
+	    setStatus(incStatusFile, 'completed')
 
         if offsite:
             logging.info('Moving archive to offsite location')
