@@ -449,7 +449,8 @@ def incBackup(incType, copy=True, offsite=True):
                 return 1
 
             # Move newly created tar.gz-file to online share
-            command = "mv {0} {1}/".format(tarball, offsiteBaseDir)
+            command = "rsync -rlvc --bwlimit=8000 {0} {1}/".format(tarball, offsiteBaseDir)
+            command = "rm {0}".format(tarball)
             status = runCommand(command)
             if status == 1:
                 return 1
