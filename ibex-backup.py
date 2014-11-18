@@ -86,7 +86,9 @@ secondaryBaseDir = settings['secondaryBaseDir']
 offsiteBaseDir = settings['offsiteBaseDir']
 targetDir = baseDir + '/prepared/' + timeStamp
 # Directories to check and create
-criticalDirectories = [baseDir, secondaryBaseDir, offsiteBaseDir]
+# Bortkommenterat och ersatt med ny rad utan offsiteBaseDir i samband med att Online-sharet blev otillgangligt 2014-07-22
+# criticalDirectories = [baseDir, secondaryBaseDir, offsiteBaseDir]
+criticalDirectories = [baseDir, secondaryBaseDir]
 # Symbolic links
 lastFull = baseDir + '/latest_full'
 lastInc = baseDir + '/latest_inc'
@@ -344,7 +346,7 @@ def fullBackup(copy):
 
 def incBackup(incType, copy=True, offsite=True):
     status = checkStatus(incStatusFile)
-    if status == 'started':
+    if status == 'started' and incType != 'first':
         logging.critical('Last inc backup still running?!')
         return 1
 
@@ -421,6 +423,8 @@ def incBackup(incType, copy=True, offsite=True):
         status = runCommand(command)
         if status == 1:
             return 1
+        else:
+           setStatus(incStatusFile, 'completed')
 
         # Tar and compress newly prepared full backup
         freeSpace = checkFreeSpace(lastFull, baseDir, 1)
@@ -434,8 +438,6 @@ def incBackup(incType, copy=True, offsite=True):
         status = runCommand(command)
         if status == 1:
             return 1
-        else:
-           setStatus(incStatusFile, 'completed')
 
         if offsite:
             logging.info('Moving archive to offsite location')
@@ -448,14 +450,19 @@ def incBackup(incType, copy=True, offsite=True):
                 logging.warning('Not enough free space, not moving archive!')
                 return 1
 
-            # Move newly created tar.gz-file to online share
-            command = "rsync -rlvc --bwlimit=8000 {0} {1}/".format(tarball, offsiteBaseDir)
+            # Move newly created tar.gz-file to online share. The transfer speed is limited to 8000kB/sec.
+            command = "rsync -rlvc --bwlimit=5000 {0} {1}/".format(tarball, offsiteBaseDir)
+            status = runCommand(command)
+            if status == 1:
+                return 1
+            else:
+                logging.debug('Copying of bzipped backup to online share successful')
             command = "rm {0}".format(tarball)
             status = runCommand(command)
             if status == 1:
                 return 1
             else:
-                logging.debug('Move successful')
+                logging.debug('Removal of locally stored bzipped backup file successful')
         else:
             logging.warning('Skipping move to offsite location')
 
@@ -524,7 +531,7 @@ if args.backupType == 'full':
             setMonitor(fullMonitorFile, 'critical', msg)
             sys.exit(1)
         else:
-            msg = 'Full backup sucessful'
+            msg = 'Full backup successful'
             logging.info(msg)
             setMonitor(fullMonitorFile, 'ok', msg)
             sys.exit(0)
@@ -562,11 +569,11 @@ else:
                     sys.exit(1)
                 else:
                     if copy is True:
-                        msg = 'First incremental backup sucessful'
+                        msg = 'First incremental backup successful'
                         logging.info(msg)
                         setMonitor(incMonitorFile, 'ok', msg)
                     else:
-                        msg = 'First incremental backup sucessful, without copy'
+                        msg = 'First incremental backup successful, without copy'
                         logging.warning(msg)
                         setMonitor(incMonitorFile, 'warning', msg)
                     sys.exit(0)
@@ -581,11 +588,11 @@ else:
                     sys.exit(1)
                 else:
                     if copy is True:
-                        msg = 'Incremental backup sucessful'
+                        msg = 'Incremental backup successful'
                         logging.info(msg)
                         setMonitor(incMonitorFile, 'ok', msg)
                     else:
-                        msg = 'Incremental backup sucessful, without copy'
+                        msg = 'Incremental backup successful, without copy'
                         logging.warning(msg)
                         setMonitor(incMonitorFile, 'warning', msg)
                     sys.exit(0)
@@ -600,11 +607,11 @@ else:
                     sys.exit(1)
                 else:
                     if copy is True:
-                        msg = 'Last incremental backup sucessful'
+                        msg = 'Last incremental backup successful'
                         logging.info(msg)
                         setMonitor(incMonitorFile, 'ok', msg)
                     else:
-                        msg = 'Last incremental backup sucessful, without copy'
+                        msg = 'Last incremental backup successful, without copy'
                         logging.warning(msg)
                         setMonitor(incMonitorFile, 'warning', msg)
                     sys.exit(0)
