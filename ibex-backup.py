@@ -11,23 +11,23 @@ from subprocess import Popen, PIPE, STDOUT
 # Read options from command line
 parser = argparse.ArgumentParser()
 parser.add_argument('backupType',
-    help='Type of backup to run',
-    type=str,
-    choices=['full', 'firstinc', 'inc', 'lastinc'],
-    default='/etc/ibex-backup/settings.conf'
-    )
+                    help='Type of backup to run',
+                    type=str,
+                    choices=['full', 'firstinc', 'inc', 'lastinc'],
+                    default='/etc/ibex-backup/settings.conf'
+                    )
 parser.add_argument('-o', '--no-offsite',
-    help='Does not copy the archived backup offsite',
-    action="store_false"
-    )
+                    help='Does not copy the archived backup offsite',
+                    action="store_false"
+                    )
 parser.add_argument('-n', '--dryrun',
-    help='Dry run',
-    action="store_true"
-    )
+                    help='Dry run',
+                    action="store_true"
+                    )
 parser.add_argument('-s', '--settings',
-    help='Settings file',
-    type=str
-    )
+                    help='Settings file',
+                    type=str
+                    )
 args = parser.parse_args()
 
 # Read settings from file
@@ -325,10 +325,10 @@ def fullBackup(copy):
 
     # Create latest_full link
     if args.dryrun:
-        logging.info('Would have created symlink "' + targetDir + '" <- "' + lastFull +'"')
+        logging.info('Would have created symlink "' + targetDir + '" <- "' + lastFull + '"')
     else:
         try:
-            logging.debug('Creating symlink: "' + targetDir + '" <- "' + lastFull +'"')
+            logging.debug('Creating symlink: "' + targetDir + '" <- "' + lastFull + '"')
             os.symlink(targetDir, lastFull)
         except OSError as exception:
             if exception.errno == errno.EEXIST:
@@ -390,10 +390,10 @@ def incBackup(incType, copy=True, offsite=True):
 
     # Create latest_inc link
     if args.dryrun:
-        logging.info('Would have created symlink "' + targetDir + '" <- "' + lastInc +'"')
+        logging.info('Would have created symlink "' + targetDir + '" <- "' + lastInc + '"')
     else:
         try:
-            logging.debug('Creating symlink: "' + targetDir + '" <- "' + lastInc +'"')
+            logging.debug('Creating symlink: "' + targetDir + '" <- "' + lastInc + '"')
             os.symlink(targetDir, lastInc)
         except OSError as exception:
             if exception.errno == errno.EEXIST:
@@ -435,7 +435,7 @@ def incBackup(incType, copy=True, offsite=True):
         if status == 1:
             return 1
         else:
-           setStatus(incStatusFile, 'completed')
+            setStatus(incStatusFile, 'completed')
 
         if offsite:
             logging.info('Moving archive to offsite location')
