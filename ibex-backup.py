@@ -93,6 +93,7 @@ lastInc = baseDir + '/latest_inc'
 # Status files
 fullStatusFile = settings['logDir'] + '/status-full-backup'
 incStatusFile = settings['logDir'] + '/status-inc-backup'
+copyStatusFile = secondaryBaseDir + '/' + timestamp + '/copy-status'
 # Monitor files
 fullMonitorFile = settings['logDir'] + '/monitor-full-backup'
 incMonitorFile = settings['logDir'] + '/monitor-inc-backup'
@@ -313,6 +314,9 @@ def fullBackup(copy):
         status = runCommand(command)
         if status == 1:
             return 1
+        else:
+            # Tell the watchdog script the copy is ready to be moved
+            setStatus(copyStatusFile, 'ready')
     else:
         logging.warning('Skipping copy to secondary location, not enough free space!')
 
@@ -375,6 +379,9 @@ def incBackup(incType, copy=True, offsite=True):
         status = runCommand(command)
         if status == 1:
             return 1
+        else:
+            # Tell the watchdog script the copy is ready to be moved
+            setStatus(copyStatusFile, 'ready')
     else:
         logging.warning('Skipping copy to secondary location, not enough free space!')
 
