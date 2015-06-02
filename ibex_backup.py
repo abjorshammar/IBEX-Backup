@@ -89,19 +89,28 @@ secondaryBaseDir = settings['secondaryBaseDir']
 offsiteBaseDir = settings['offsiteBaseDir']
 tempBaseDir = settings['tempBaseDir']
 tempDir = tempBaseDir + '/' + timeStamp
+settings['tempDir'] = tempDir
 targetDir = baseDir + '/prepared/' + timeStamp
+settings['targetDir'] = targetDir
 # Directories to check and create
 criticalDirectories = [baseDir, secondaryBaseDir, offsiteBaseDir, tempBaseDir]
 # Symbolic links
 lastFull = baseDir + '/latest_full'
+settings['lastFull'] = lastFull
 lastInc = baseDir + '/latest_inc'
+settings['lastInc'] = lastInc
 # Status files
 fullStatusFile = settings['logDir'] + '/status-full-backup'
+settings['fullStatusFile'] = fullStatusFile
 incStatusFile = settings['logDir'] + '/status-inc-backup'
+settings['incStatusFile'] = incStatusFile
 tempStatusFile = tempDir + '/status-watchdog'
+settings['tempStatusFile'] = tempStatusFile
 # Monitor files
 fullMonitorFile = settings['logDir'] + '/monitor-full-backup'
+settings['fullMonitorFile'] = fullMonitorFile
 incMonitorFile = settings['logDir'] + '/monitor-inc-backup'
+settings['incMonitorFile'] = incMonitorFile
 
 
 # Main
@@ -165,7 +174,7 @@ if args.backupType == 'full':
 
         if status == 1:
             logging.debug('Setting status file to failed')
-            setStatus(fullStatusFile, 'failed')
+            setStatus(dryRun=args.dryrun, fullStatusFile, 'failed')
             msg = 'Full backup failed!'
             logging.critical(msg)
             setMonitor(fullMonitorFile, 'critical', msg)

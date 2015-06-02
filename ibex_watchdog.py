@@ -70,3 +70,6 @@ fullMonitorFile = settings['logDir'] + '/monitor-watchdog'
 for directory in watchDirs:
     if os.path.isfile(wdStatusFile):
         status = checkStatus(wdStatusFile)
+        if status == 'ok':
+            # Directory is ready, start copying
+            

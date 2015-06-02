@@ -58,10 +58,10 @@ def checkFreeSpace(path, partition, multiplicator):
         return True
 
 
-def setStatus(statFile, status):
+def setStatus(dryRun=True, statFile, status):
 
     # If dry run, return log statement
-    if args.dryrun:
+    if dryRun:
         logging.info('Would have written "' + status + '" to "' + statFile + '"')
         return 0
 
@@ -201,7 +201,7 @@ def checkBackup(checkType):
         return False
 
 
-def fullBackup(copy):
+def fullBackup(copy=False, targetDir, fullStatusFile, tempStatusFile, ):
     status = checkStatus(fullStatusFile)
     if status == 'started':
         logging.critical('Last full backup still running?!')
