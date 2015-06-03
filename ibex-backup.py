@@ -93,7 +93,7 @@ lastInc = baseDir + '/latest_inc'
 # Status files
 fullStatusFile = settings['logDir'] + '/status-full-backup'
 incStatusFile = settings['logDir'] + '/status-inc-backup'
-copyStatusFile = secondaryBaseDir + '/' + timestamp + '/copy-status'
+copyStatusFile = secondaryBaseDir + '/' + timeStamp + '/copy-status'
 # Monitor files
 fullMonitorFile = settings['logDir'] + '/monitor-full-backup'
 incMonitorFile = settings['logDir'] + '/monitor-inc-backup'
