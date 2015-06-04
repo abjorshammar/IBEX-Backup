@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import os
 import sys
+import time
 import argparse
 import logging
 import shlex
@@ -64,8 +65,11 @@ storageBaseDir = settings['storageBaseDir']
 criticalDirectories = [secondaryBaseDir, storageBaseDir]
 # Status files
 copyStatusFile = 'copy-status'
+# Monitor files
+monitorFile = settings['logDir'] + '/monitor-watchdog'
 # Misc
 pidFile = '/tmp/ibex-watchdog.pid'
+errorDict = {'Failed mvs': 0, 'Failed rms': 0}
 
 
 # Functions
@@ -115,6 +119,30 @@ def setStatus(statFile, status):
         sys.exit(1)
 
 
+def setMonitor(monitorFile, status, message):
+
+    # Get a current timestamp
+    currentTimeStamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+
+    # Line to be put in to monitor file
+    line = "{0}:{1}:{2}\n".format(currentTimeStamp, status.upper(), message)
+
+    # If dry run, return log statement
+    if args.dryrun:
+        logging.info('Would have written "' + line + '" to "' + monitorFile + '"')
+        return 0
+
+    try:
+        with open(monitorFile, 'a') as f:
+            logging.debug('Writing "' + line + '" to "' + monitorFile + '"')
+            f.write(line)
+        return
+    except IOError:
+        logging.critical('Unable to write to"' + monitorFile + '"')
+        os.unlink(pidFile)
+        sys.exit(1)
+
+
 def runCommand(command):
 
     # If dry run, just return the command
@@ -152,6 +180,19 @@ def getOrSetPid(pidFile):
         logging.debug('Creating pid file: ' + pidFile)
         file(pidFile, 'w').write(pid)
         return
+
+
+def updateMonitorFile(monitorFile, errorDict):
+    status = 'ok'
+    msg = []
+    for key in errorDict:
+        if errorDict[key] is not 0:
+            status = 'critical'
+        msg.append(key + ':' + str(errorDict[key]))
+
+    msg = ' '.join(msg)
+    setMonitor(monitorFile, status, msg)
+
 
 # Main
 # ----
@@ -210,10 +251,19 @@ if secondaryDirectories:
                     setStatus(currentStatusFile, 'removal failed')
                     os.unlink(pidFile)
                     sys.exit(1)
+        elif fileStatus == 'move failed':
+            errorDict['Failed mvs'] += 1
+            logging.warning('Directory move failed, ignoring')
+        elif fileStatus == 'removal failed':
+            errorDict['Failed rms'] += 1
+            logging.warning('Directory removal failed, ignoring')
         else:
             logging.info('Directory not ready to be moved, waiting')
 else:
     logging.info('No directories found, nothing to do')
+
+# Update the monitor file
+updateMonitorFile(monitorFile, errorDict)
 
 os.unlink(pidFile)
 sys.exit(0)
