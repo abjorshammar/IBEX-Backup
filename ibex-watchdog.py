@@ -97,6 +97,24 @@ def checkStatus(statFile):
         return None
 
 
+def setStatus(statFile, status):
+
+    # If dry run, return log statement
+    if args.dryrun:
+        logging.info('Would have written "' + status + '" to "' + statFile + '"')
+        return 0
+
+    try:
+        with open(statFile, 'w') as stat:
+            logging.debug('Writing "' + status + '" to "' + statFile + '"')
+            stat.write(status)
+        return
+    except IOError:
+        logging.critical('Unable to write "' + statFile + '" file')
+        os.unlink(pidFile)
+        sys.exit(1)
+
+
 def runCommand(command):
 
     # If dry run, just return the command
@@ -161,29 +179,35 @@ else:
 logging.info('Looking for directories to work on')
 secondaryDirectories = next(os.walk(secondaryBaseDir))[1]
 if secondaryDirectories:
-    logging.info('Found: ' + str(secondaryDirectories))
+    logging.info('Found ' + str(len(secondaryDirectories)) + ' directories')
+    logging.debug(str(secondaryDirectories))
     for directory in secondaryDirectories:
         currentDir = secondaryBaseDir + '/' + directory
         currentStatusFile = currentDir + '/' + copyStatusFile
+        storageStatusFile = storageBaseDir + '/' + directory + '/' + copyStatusFile
 
         # Check the status file of current directory
         fileStatus = checkStatus(currentStatusFile)
         if fileStatus == 'ready':
             # Copy the unprepared backup to storage location
-            logging.info('Copying "' + directory + '"" to "' + storageBaseDir + '"')
+            logging.info('Copying "' + directory + '" to "' + storageBaseDir + '"')
+            setStatus(currentStatusFile, 'moving')
             command = "cp -a {0} {1}/".format(currentDir, storageBaseDir)
             status = runCommand(command)
             if status == 1:
                 logging.critical('Copy failed!')
+                setStatus(currentStatusFile, 'move failed')
                 os.unlink(pidFile)
                 sys.exit(1)
             else:
+                setStatus(storageStatusFile, 'ok')
                 # Time to remove the backup from secondaryBaseDir
                 logging.info('Removing "' + currentDir + '"')
                 command = "rm -rf {0}".format(currentDir)
                 status = runCommand(command)
                 if status == 1:
                     logging.critical('Removal failed!')
+                    setStatus(currentStatusFile, 'removal failed')
                     os.unlink(pidFile)
                     sys.exit(1)
         else:
