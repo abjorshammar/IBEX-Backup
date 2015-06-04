@@ -159,7 +159,7 @@ else:
 
 # Check for directories in secondaryBaseDir
 logging.info('Looking for directories to work on')
-secondaryDirectories = next(os.walk('secondaryBaseDir'))[1]
+secondaryDirectories = next(os.walk(secondaryBaseDir))[1]
 if secondaryDirectories:
     logging.info('Found: ' + secondaryDirectories)
     for directory in secondaryDirectories:
