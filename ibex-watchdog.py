@@ -161,7 +161,7 @@ else:
 logging.info('Looking for directories to work on')
 secondaryDirectories = next(os.walk(secondaryBaseDir))[1]
 if secondaryDirectories:
-    logging.info('Found: ' + secondaryDirectories)
+    logging.info('Found: ' + str(secondaryDirectories))
     for directory in secondaryDirectories:
         currentDir = secondaryBaseDir + '/' + directory
         currentStatusFile = currentDir + '/' + copyStatusFile
