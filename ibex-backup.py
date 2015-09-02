@@ -458,7 +458,7 @@ def incBackup(incType, copy=True, offsite=True):
                 return 1
 
             # Move newly created tar.gz-file to online share. The transfer speed is limited to 8000kB/sec.
-            command = "rsync -rlvc --bwlimit=5000 {0} {1}/".format(tarball, offsiteBaseDir)
+            command = "rsync -rlv --bwlimit=5000 {0} {1}/".format(tarball, offsiteBaseDir)
             status = runCommand(command)
             if status == 1:
                 return 1
