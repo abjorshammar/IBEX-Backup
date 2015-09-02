@@ -83,6 +83,7 @@ socketPath = settings['socketPath']
 databaseDir = settings['databaseDir']
 baseDir = settings['baseDir']
 secondaryBaseDir = settings['secondaryBaseDir']
+incomingBaseDir = settings['incomingBaseDir']
 offsiteBaseDir = settings['offsiteBaseDir']
 targetDir = baseDir + '/prepared/' + timeStamp
 # Directories to check and create
@@ -94,6 +95,7 @@ lastInc = baseDir + '/latest_inc'
 fullStatusFile = settings['logDir'] + '/status-full-backup'
 incStatusFile = settings['logDir'] + '/status-inc-backup'
 copyStatusFile = secondaryBaseDir + '/' + timeStamp + '/copy-status'
+archiveStatusFile = incomingBaseDir + '/' + timeStamp + '/copy-status'
 # Monitor files
 fullMonitorFile = settings['logDir'] + '/monitor-full-backup'
 incMonitorFile = settings['logDir'] + '/monitor-inc-backup'
@@ -431,47 +433,28 @@ def incBackup(incType, copy=True, offsite=True):
         else:
             setStatus(incStatusFile, 'completed')
 
-        # Tar and compress newly prepared full backup
-        freeSpace = checkFreeSpace(lastFull, baseDir, 1)
-        if not freeSpace:
-            logging.warning('Not enough free space, skipping archiving!')
-            return 1
-
-        logging.info('Archiving full backup')
-        tarball = "{0}/prepared/{1}.tar.bz2".format(baseDir, fullName)
-        command = "tar caf {0} {1}/prepared/{2}".format(tarball, baseDir, fullName)
-        status = runCommand(command)
-        if status == 1:
-            return 1
-        else:
-            setStatus(incStatusFile, 'completed')
-
-        if offsite:
-            logging.info('Moving archive to offsite location')
+        # Copy the newly prepared full backup to archive location
+        if incomingBaseDir:
+            logging.info('Copying backup to archive location')
             if args.dryrun:
                 freeSpace = checkFreeSpace(lastFull, baseDir, 1)
             else:
-                freeSpace = checkFreeSpace(tarball, offsiteBaseDir, 1)
+                freeSpace = checkFreeSpace(lastFull, incomingBaseDir, 1)
 
             if not freeSpace:
-                logging.warning('Not enough free space, not moving archive!')
+                logging.warning('Not enough free space, not copying to archive!')
                 return 1
 
             # Move newly created tar.gz-file to online share. The transfer speed is limited to 8000kB/sec.
-            command = "rsync -rlv --bwlimit=5000 {0} {1}/".format(tarball, offsiteBaseDir)
+            command = "rsync -rlv --bwlimit=5000 {0} {1}/".format(lastFull, incomingBaseDir)
             status = runCommand(command)
             if status == 1:
                 return 1
             else:
-                logging.debug('Copying of bzipped backup to online share successful')
-            command = "rm {0}".format(tarball)
-            status = runCommand(command)
-            if status == 1:
-                return 1
-            else:
-                logging.debug('Removal of locally stored bzipped backup file successful')
+                logging.debug('Copying of backup to archive successful')
+                setStatus(archiveStatusFile, 'ready')
         else:
-            logging.warning('Skipping move to offsite location')
+            logging.warning('Skipping copy to archive location')
 
     setStatus(incStatusFile, 'completed')
 
