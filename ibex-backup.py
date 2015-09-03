@@ -445,8 +445,8 @@ def incBackup(incType, copy=True, offsite=True):
                 logging.warning('Not enough free space, not copying to archive!')
                 return 1
 
-            # Move newly created tar.gz-file to online share. The transfer speed is limited to 8000kB/sec.
-            command = "rsync -rlv --bwlimit=5000 {0} {1}/".format(lastFull, incomingBaseDir)
+            # Copy the prepped backup to archive location
+            command = "rsync -rl {0} {1}/".format(lastFull, incomingBaseDir)
             status = runCommand(command)
             if status == 1:
                 return 1
