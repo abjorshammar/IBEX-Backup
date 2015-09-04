@@ -95,7 +95,6 @@ lastInc = baseDir + '/latest_inc'
 fullStatusFile = settings['logDir'] + '/status-full-backup'
 incStatusFile = settings['logDir'] + '/status-inc-backup'
 copyStatusFile = secondaryBaseDir + '/' + timeStamp + '/copy-status'
-archiveStatusFile = incomingBaseDir + '/' + timeStamp + '/copy-status'
 # Monitor files
 fullMonitorFile = settings['logDir'] + '/monitor-full-backup'
 incMonitorFile = settings['logDir'] + '/monitor-inc-backup'
@@ -420,9 +419,10 @@ def incBackup(incType, copy=True, offsite=True):
         if status != 0:
             return 1
         else:
-            fullName = result[0].split('/')[-1]
+            fullBackupPath = result[0]
+            fullBackupName = fullBackupPath.split('/')[-1]
 
-        logging.debug('Full backup name: "' + fullName + '"')
+        logging.debug('Full backup name: "' + fullBackupName + '"')
 
         # Prepare the full backup
         logging.info('Preparing full backup')
@@ -446,12 +446,13 @@ def incBackup(incType, copy=True, offsite=True):
                 return 1
 
             # Copy the prepped backup to archive location
-            command = "rsync -rl {0} {1}/".format(lastFull, incomingBaseDir)
+            command = "cp -a {0} {1}/".format(fullBackupPath, incomingBaseDir)
             status = runCommand(command)
             if status == 1:
                 return 1
             else:
                 logging.debug('Copying of backup to archive successful')
+                archiveStatusFile = incomingBaseDir + '/' + fullBackupName + '/copy-status'
                 setStatus(archiveStatusFile, 'ready')
         else:
             logging.warning('Skipping copy to archive location')
