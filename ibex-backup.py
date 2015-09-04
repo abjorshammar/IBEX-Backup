@@ -260,7 +260,7 @@ def checkBackup(checkType):
         else:
             check = result[0].split(' = ')[1]
 
-        if check != 'full-prepared':
+        if (check != 'log-applied') and (check != 'full-prepared'):
             return False
         else:
             return True
